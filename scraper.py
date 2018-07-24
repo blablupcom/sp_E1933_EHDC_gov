@@ -51,7 +51,7 @@ def validateURL(url):
         else:
             ext = os.path.splitext(url)[1]
         validURL = r.getcode() == 200
-        validFiletype = ext.lower() in ['.csv', '.xls', '.xlsx']
+        validFiletype = ext.lower() in ['.csv', '.xls', '.xlsx', '.pdf']
         return validURL, validFiletype
     except:
         print ("Error validating URL.")
@@ -85,38 +85,70 @@ def convert_mth_strings ( mth_string ):
 
 #### VARIABLES 1.0
 
-entity_id = "E1232_CBC_gov"
-url = "https://www.dorsetforyou.gov.uk/your-council/about-your-council/budgets-and-spending/open-data-and-transparency/payments-to-suppliers-christchurch-borough-council.aspx"
+entity_id = "E1933_EHDC_gov"
+url = "https://www.eastherts.gov.uk/councilspending"
 errors = 0
 data = []
 
 
 #### READ HTML 1.0
+import requests
 
-html = urllib2.urlopen(url)
-soup = BeautifulSoup(html, 'lxml')
+html = requests.get(url)
+soup = BeautifulSoup(html.text, 'lxml')
 
 #### SCRAPE DATA
 
-links = soup.find('main', id='main').find_all('li')
-for link in links:
-    if 'http' not in link.find('a')['href']:
-        url = 'https://www.dorsetforyou.gov.uk/' + link.find('a')['href'][1:]
+blocks = soup.find_all('div', 'grid__cell grid__cell--listitem')
+for block in blocks:
+    link = block.find('a')
+    if 'http' not in link['href']:
+        year_url = 'https://www.eastherts.gov.uk' + link['href']
     else:
-        url = link.find('a')['href'][1:]
-    if '.xlsx' in url or '.xls' in url or '.csv' in url:
-        file_name = link.text.strip()
-        csvYr = link.text.strip()[-4:]
-        if 'Q4' in file_name:
-            csvMth = 'Q1'
-        if 'Q3' in file_name:
-            csvMth = 'Q4'
-        if 'Q2' in file_name:
-            csvMth = 'Q3'
-        if 'Q1' in file_name:
-            csvMth = 'Q2'
-        csvMth = convert_mth_strings(csvMth.upper())
-        data.append([csvYr, csvMth, url])
+        year_url = link['href']
+    if 'Council Spending' not in link.text:
+        print year_url
+        year_html = requests.get(year_url)
+        year_soup = BeautifulSoup(year_html.text, 'lxml')
+        h1_blocks = year_soup.find('div', 'maincontent__bodytext').find('div', 'textblock').find_all('h1')
+        h2_blocks = year_soup.find('div', 'maincontent__bodytext').find('div', 'textblock').find_all('h2')
+        for h1_block in h1_blocks:
+            file_name = h1_block.text
+            links = h1_block.find_next('ul').find_all('a')
+            for link in links:
+                url = link['href']
+                if 'http' not in url:
+                    url = 'https://www.eastherts.gov.uk' + url
+                else:
+                    url = url
+                csvMth = 'Q0'
+                csvYr = year_url.split('-')[-1]
+                csvMth = convert_mth_strings(csvMth.upper())
+                data.append([csvYr, csvMth, url])
+        for h2_block in h2_blocks:
+            file_name = h2_block.text
+            links = h2_block.find_next('ul').find_all('a')
+            for link in links:
+                url = link['href']
+                if 'http' not in url:
+                    url = 'https://www.eastherts.gov.uk' + url
+                else:
+                    url = url
+                csvMth = 'Q0'
+                csvYr = year_url.split('-')[-1]
+                csvMth = convert_mth_strings(csvMth.upper())
+                data.append([csvYr, csvMth, url])
+            # if '.csv' in block['href']:
+            #     url = block['href']
+            #     if 'http' not in url:
+            #         url = 'http://www.bromsgrove.gov.uk' + url
+            #     else:
+            #         url = url
+            #     file_name = block.text.replace('csv', '').strip()
+            #     csvMth = file_name.split()[-2][:3]
+            #     csvYr = file_name[-4:]
+            #     csvMth = convert_mth_strings(csvMth.upper())
+            #     data.append([csvYr, csvMth, url])
 
 
 #### STORE DATA 1.0
